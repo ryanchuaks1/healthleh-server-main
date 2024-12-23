@@ -23,6 +23,16 @@ app.get("/", (req, res) => {
     res.send("Server is running!");
 });
 
+// Test Cred
+app.get("/env", (req, res) => {
+  res.json({
+    DB_USER: process.env.DB_USER,
+    DB_SERVER: process.env.DB_SERVER,
+    DB_NAME: process.env.DB_NAME,
+  });
+});
+
+
 // Test endpoint
 app.get("/test-connection", async (req, res) => {
   try {
