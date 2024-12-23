@@ -23,19 +23,16 @@ app.get("/", (req, res) => {
     res.send("Server is running!");
 });
 
-app.post("/api/users", async (req, res) => {
-    const { username, email } = req.body;
-    try {
-        const pool = await sql.connect(config);
-        const result = await pool
-            .request()
-            .input("username", sql.VarChar, username)
-            .input("email", sql.VarChar, email)
-            .query("INSERT INTO Users (Username, Email) VALUES (@username, @email)");
-        res.status(200).send({ message: "User added successfully!", result });
-    } catch (error) {
-        res.status(500).send({ error: error.message });
-    }
+// Test endpoint
+app.get("/test-connection", async (req, res) => {
+  try {
+    const pool = await sql.connect(config);
+    const result = await pool.request().query("SELECT TOP 1 * FROM users");
+    res.status(200).json(result.recordset);
+  } catch (error) {
+    console.error("SQL Error:", error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 const port = process.env.PORT || 3000;
