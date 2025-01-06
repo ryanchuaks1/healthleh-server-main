@@ -19,25 +19,76 @@ const config = {
     },
 };
 
+// Root endpoint
 app.get("/", (req, res) => {
     res.send("Server is running!");
 });
 
+// Create a new user
 app.post("/api/users", async (req, res) => {
-    const { username, email } = req.body;
+    const { phoneNumber, firstName, lastName, height, weight, weightGoal } = req.body;
     try {
         const pool = await sql.connect(config);
-        const result = await pool
+        await pool
             .request()
-            .input("username", sql.VarChar, username)
-            .input("email", sql.VarChar, email)
-            .query("INSERT INTO Users (Username, Email) VALUES (@username, @email)");
-        res.status(200).send({ message: "User added successfully!", result });
+            .input("phoneNumber", sql.VarChar, phoneNumber)
+            .input("firstName", sql.VarChar, firstName)
+            .input("lastName", sql.VarChar, lastName)
+            .input("height", sql.Float, height)
+            .input("weight", sql.Float, weight)
+            .input("weightGoal", sql.Float, weightGoal)
+            .query(`
+          INSERT INTO Users (PhoneNumber, FirstName, LastName, Height, Weight, WeightGoal)
+          VALUES (@phoneNumber, @firstName, @lastName, @height, @weight, @weightGoal)
+        `);
+        res.status(200).send({ message: "User added successfully!" });
     } catch (error) {
+        console.error("Error adding user:", error);
         res.status(500).send({ error: error.message });
     }
 });
 
+// Get a user by Phone Number
+app.get("/api/users/:phoneNumber", async (req, res) => {
+    const { phoneNumber } = req.params;
+    try {
+        const pool = await sql.connect(config);
+        const result = await pool
+            .request()
+            .input("phoneNumber", sql.VarChar, phoneNumber)
+            .query("SELECT * FROM Users WHERE PhoneNumber = @phoneNumber");
+        if (result.recordset.length > 0) {
+            res.status(200).json(result.recordset[0]);
+        } else {
+            res.status(404).send({ message: "User not found" });
+        }
+    } catch (error) {
+        console.error("Error fetching user:", error);
+        res.status(500).send({ error: error.message });
+    }
+});
+
+// Delete a user by Phone Number
+app.delete("/api/users/:phoneNumber", async (req, res) => {
+    const { phoneNumber } = req.params;
+    try {
+        const pool = await sql.connect(config);
+        const result = await pool
+            .request()
+            .input("phoneNumber", sql.VarChar, phoneNumber)
+            .query("DELETE FROM Users WHERE PhoneNumber = @phoneNumber");
+        if (result.rowsAffected[0] > 0) {
+            res.status(200).send({ message: "User deleted successfully!" });
+        } else {
+            res.status(404).send({ message: "User not found" });
+        }
+    } catch (error) {
+        console.error("Error deleting user:", error);
+        res.status(500).send({ error: error.message });
+    }
+});
+
+// Start the server
 const port = process.env.PORT || 3000;
 app.listen(port, () => {
     console.log(`Server is running on port ${port}`);
