@@ -19,11 +19,6 @@ const config = {
     },
 };
 
-console.log("Environment Variables:");
-console.log("DB_USER:", process.env.DB_USER);
-console.log("DB_SERVER:", process.env.DB_SERVER);
-console.log("DB_NAME:", process.env.DB_NAME);
-
 // Root endpoint
 app.get("/", (req, res) => {
     res.send("Server is running!");
