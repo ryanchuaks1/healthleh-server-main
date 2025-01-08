@@ -100,6 +100,7 @@ app.delete("/api/users/:phoneNumber", async (req, res) => {
     }
 });
 
+
 // Route to add a device to IoT Hub and the database
 app.post("/api/devices", async (req, res) => {
     const { deviceName, phoneNumber, mode, deviceType, bluetoothId } = req.body; // Using phoneNumber
@@ -150,6 +151,38 @@ app.get("/api/devices/:phoneNumber", async (req, res) => {
     }
 });
 
+// Route to update a device's mode
+app.put("/api/devices/:deviceId", async (req, res) => {
+    const { deviceId } = req.params;
+    const { mode } = req.body;
+
+    if (!mode) {
+        return res.status(400).json({ error: "Mode is required." });
+    }
+
+    try {
+        const pool = await sql.connect(config);
+        const result = await pool
+            .request()
+            .input("deviceId", sql.VarChar, deviceId)
+            .input("mode", sql.VarChar, mode)
+            .query(`
+                UPDATE Devices
+                SET mode = @mode
+                WHERE deviceId = @deviceId
+            `);
+
+        if (result.rowsAffected[0] > 0) {
+            res.status(200).json({ message: "Device mode updated successfully." });
+        } else {
+            res.status(404).json({ error: "Device not found." });
+        }
+    } catch (error) {
+        console.error("Error updating device mode:", error);
+        res.status(500).json({ error: "An error occurred while updating the device mode." });
+    }
+});
+
 // Route to delete a device from IoT Hub and the database
 app.delete("/api/devices/:deviceId", async (req, res) => {
     const { deviceId } = req.params;
@@ -175,6 +208,7 @@ app.delete("/api/devices/:deviceId", async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
+
 
 // Route to test the database connection
 app.get("/test-connection", async (req, res) => {
