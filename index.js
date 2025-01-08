@@ -19,6 +19,11 @@ const config = {
     },
 };
 
+console.log("Environment Variables:");
+console.log("DB_USER:", process.env.DB_USER);
+console.log("DB_SERVER:", process.env.DB_SERVER);
+console.log("DB_NAME:", process.env.DB_NAME);
+
 // Root endpoint
 app.get("/", (req, res) => {
     res.send("Server is running!");
@@ -26,7 +31,8 @@ app.get("/", (req, res) => {
 
 // Create a new user
 app.post("/api/users", async (req, res) => {
-    const { phoneNumber, firstName, lastName, height, weight, weightGoal } = req.body;
+    const { phoneNumber, firstName, lastName, height, weight, weightGoal } =
+        req.body;
     try {
         const pool = await sql.connect(config);
         await pool
@@ -36,8 +42,7 @@ app.post("/api/users", async (req, res) => {
             .input("lastName", sql.VarChar, lastName)
             .input("height", sql.Float, height)
             .input("weight", sql.Float, weight)
-            .input("weightGoal", sql.Float, weightGoal)
-            .query(`
+            .input("weightGoal", sql.Float, weightGoal).query(`
           INSERT INTO Users (PhoneNumber, FirstName, LastName, Height, Weight, WeightGoal)
           VALUES (@phoneNumber, @firstName, @lastName, @height, @weight, @weightGoal)
         `);
@@ -84,6 +89,17 @@ app.delete("/api/users/:phoneNumber", async (req, res) => {
         }
     } catch (error) {
         console.error("Error deleting user:", error);
+        res.status(500).send({ error: error.message });
+    }
+});
+
+app.get("/test-connection", async (req, res) => {
+    try {
+        const pool = await sql.connect(config);
+        console.log("Database connection successful.");
+        res.send("Connected to the database!");
+    } catch (error) {
+        console.error("Database connection failed:", error);
         res.status(500).send({ error: error.message });
     }
 });
