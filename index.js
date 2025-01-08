@@ -3,6 +3,7 @@ const bodyParser = require("body-parser");
 const sql = require("mssql");
 const dotenv = require("dotenv");
 const cors = require("cors");
+const { Registry } = require("azure-iothub");
 
 dotenv.config();
 
@@ -22,10 +23,13 @@ const config = {
     server: process.env.DB_SERVER,
     database: process.env.DB_NAME,
     options: {
-        encrypt: true, // For Azure
-        trustServerCertificate: false, // Change to true for local dev/testing
+        encrypt: true, 
+        trustServerCertificate: false,
     },
 };
+
+// IoT Hub Registry
+const registry = Registry.fromConnectionString(process.env.IOT_HUB_CONNECTION_STRING);
 
 // Root endpoint
 app.get("/", (req, res) => {
@@ -96,6 +100,81 @@ app.delete("/api/users/:phoneNumber", async (req, res) => {
     }
 });
 
+// Route to add a device to IoT Hub and the database
+app.post("/api/devices", async (req, res) => {
+    const { deviceName, userId, mode } = req.body; // Assuming userId is provided for association
+    const deviceId = `device-${Date.now()}`; // Generate a unique device ID
+
+    try {
+        // Add device to IoT Hub
+        const device = { deviceId };
+        await registry.create(device);
+
+        // Save device to the database
+        const pool = await sql.connect(config);
+        await pool
+            .request()
+            .input("deviceId", sql.VarChar, deviceId)
+            .input("userId", sql.VarChar, userId)
+            .input("deviceName", sql.VarChar, deviceName)
+            .input("mode", sql.VarChar, mode || "Input")
+            .query(`
+                INSERT INTO Devices (deviceId, userId, deviceName, mode)
+                VALUES (@deviceId, @userId, @deviceName, @mode)
+            `);
+
+        res.status(201).json({ message: "Device added successfully!", deviceId });
+    } catch (error) {
+        console.error("Error adding device:", error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Route to fetch all devices for a user
+app.get("/api/devices/:userId", async (req, res) => {
+    const { userId } = req.params;
+
+    try {
+        const pool = await sql.connect(config);
+        const result = await pool
+            .request()
+            .input("userId", sql.VarChar, userId)
+            .query("SELECT * FROM Devices WHERE userId = @userId");
+
+        res.status(200).json(result.recordset);
+    } catch (error) {
+        console.error("Error fetching devices:", error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Route to delete a device from IoT Hub and the database
+app.delete("/api/devices/:deviceId", async (req, res) => {
+    const { deviceId } = req.params;
+
+    try {
+        // Remove device from IoT Hub
+        await registry.delete(deviceId);
+
+        // Remove device from the database
+        const pool = await sql.connect(config);
+        const result = await pool
+            .request()
+            .input("deviceId", sql.VarChar, deviceId)
+            .query("DELETE FROM Devices WHERE deviceId = @deviceId");
+
+        if (result.rowsAffected[0] > 0) {
+            res.status(200).json({ message: "Device deleted successfully!" });
+        } else {
+            res.status(404).json({ message: "Device not found" });
+        }
+    } catch (error) {
+        console.error("Error deleting device:", error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Route to test the database connection
 app.get("/test-connection", async (req, res) => {
     try {
         const pool = await sql.connect(config);
