@@ -2,15 +2,15 @@ const express = require("express");
 const bodyParser = require("body-parser");
 const sql = require("mssql");
 const dotenv = require("dotenv");
-// const cors = require("cors");
+const cors = require("cors");
 
-// app.use(
-//     cors({
-//         origin: "*", // Relaxed for native apps
-//         methods: ["GET", "POST", "PUT", "DELETE"],
-//         allowedHeaders: ["Content-Type", "Authorization"],
-//     })
-// );
+app.use(
+    cors({
+        origin: "*", // Relaxed for native apps
+        methods: ["GET", "POST", "PUT", "DELETE"],
+        allowedHeaders: ["Content-Type", "Authorization"],
+    })
+);
 
 dotenv.config();
 
