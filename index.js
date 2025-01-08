@@ -102,7 +102,7 @@ app.delete("/api/users/:phoneNumber", async (req, res) => {
 
 // Route to add a device to IoT Hub and the database
 app.post("/api/devices", async (req, res) => {
-    const { deviceName, UID, mode } = req.body; // Using UID instead of userId
+    const { deviceName, phoneNumber, mode, deviceType, bluetoothId } = req.body; // Using phoneNumber
     const deviceId = `device-${Date.now()}`; // Generate a unique device ID
 
     try {
@@ -115,12 +115,14 @@ app.post("/api/devices", async (req, res) => {
         await pool
             .request()
             .input("deviceId", sql.VarChar, deviceId)
-            .input("UID", sql.VarChar, UID)
+            .input("phoneNumber", sql.VarChar, phoneNumber)
             .input("deviceName", sql.VarChar, deviceName)
+            .input("deviceType", sql.VarChar, deviceType)
+            .input("bluetoothId", sql.VarChar, bluetoothId)
             .input("mode", sql.VarChar, mode || "Input")
             .query(`
-                INSERT INTO Devices (deviceId, UID, deviceName, mode)
-                VALUES (@deviceId, @UID, @deviceName, @mode)
+                INSERT INTO Devices (deviceId, phoneNumber, deviceName, deviceType, bluetoothId, mode)
+                VALUES (@deviceId, @phoneNumber, @deviceName, @deviceType, @bluetoothId, @mode)
             `);
 
         res.status(201).json({ message: "Device added successfully!", deviceId });
@@ -131,15 +133,15 @@ app.post("/api/devices", async (req, res) => {
 });
 
 // Route to fetch all devices for a user
-app.get("/api/devices/:UID", async (req, res) => {
-    const { UID } = req.params;
+app.get("/api/devices/:phoneNumber", async (req, res) => {
+    const { phoneNumber } = req.params;
 
     try {
         const pool = await sql.connect(config);
         const result = await pool
             .request()
-            .input("UID", sql.VarChar, UID)
-            .query("SELECT * FROM Devices WHERE UID = @UID");
+            .input("phoneNumber", sql.VarChar, phoneNumber)
+            .query("SELECT * FROM Devices WHERE phoneNumber = @phoneNumber");
 
         res.status(200).json(result.recordset);
     } catch (error) {
