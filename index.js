@@ -4,6 +4,10 @@ const sql = require("mssql");
 const dotenv = require("dotenv");
 const cors = require("cors");
 
+dotenv.config();
+
+const app = express();
+app.use(bodyParser.json());
 app.use(
     cors({
         origin: "*", // Relaxed for native apps
@@ -11,11 +15,6 @@ app.use(
         allowedHeaders: ["Content-Type", "Authorization"],
     })
 );
-
-dotenv.config();
-
-const app = express();
-app.use(bodyParser.json());
 
 const config = {
     user: process.env.DB_USER,
