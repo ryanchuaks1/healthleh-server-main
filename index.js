@@ -102,7 +102,7 @@ app.delete("/api/users/:phoneNumber", async (req, res) => {
 
 // Route to add a device to IoT Hub and the database
 app.post("/api/devices", async (req, res) => {
-    const { deviceName, userId, mode } = req.body; // Assuming userId is provided for association
+    const { deviceName, UID, mode } = req.body; // Using UID instead of userId
     const deviceId = `device-${Date.now()}`; // Generate a unique device ID
 
     try {
@@ -115,12 +115,12 @@ app.post("/api/devices", async (req, res) => {
         await pool
             .request()
             .input("deviceId", sql.VarChar, deviceId)
-            .input("userId", sql.VarChar, userId)
+            .input("UID", sql.VarChar, UID)
             .input("deviceName", sql.VarChar, deviceName)
             .input("mode", sql.VarChar, mode || "Input")
             .query(`
-                INSERT INTO Devices (deviceId, userId, deviceName, mode)
-                VALUES (@deviceId, @userId, @deviceName, @mode)
+                INSERT INTO Devices (deviceId, UID, deviceName, mode)
+                VALUES (@deviceId, @UID, @deviceName, @mode)
             `);
 
         res.status(201).json({ message: "Device added successfully!", deviceId });
@@ -131,15 +131,15 @@ app.post("/api/devices", async (req, res) => {
 });
 
 // Route to fetch all devices for a user
-app.get("/api/devices/:userId", async (req, res) => {
-    const { userId } = req.params;
+app.get("/api/devices/:UID", async (req, res) => {
+    const { UID } = req.params;
 
     try {
         const pool = await sql.connect(config);
         const result = await pool
             .request()
-            .input("userId", sql.VarChar, userId)
-            .query("SELECT * FROM Devices WHERE userId = @userId");
+            .input("UID", sql.VarChar, UID)
+            .query("SELECT * FROM Devices WHERE UID = @UID");
 
         res.status(200).json(result.recordset);
     } catch (error) {
