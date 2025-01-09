@@ -106,16 +106,22 @@ app.post("/api/devices", async (req, res) => {
 
     try {
         // Create the device in IoT Hub
+        console.log("Creating device in IoT Hub...");
         const device = { deviceId };
-        const result = await registry.create(device);
+        await registry.create(device);
 
-        // Retrieve the connection string
+        // Retrieve the connection string for the created device
+        console.log("Fetching connection string for the device...");
+        const result = await registry.get(deviceId);
         const { hostName } = result._response.parsedBody;
-        console.log("res:", result);
-        // const generatedConnectionString = `HostName=${hostName};DeviceId=${deviceId};SharedAccessKey=${result.authentication.symmetricKey.primaryKey}`;
-        const generatedConnectionString = "testing";
+        const generatedConnectionString = `HostName=${hostName};DeviceId=${deviceId};SharedAccessKey=${result.authentication.symmetricKey.primaryKey}`;
+
+        if (!hostName || !result.authentication.symmetricKey.primaryKey) {
+            throw new Error("Failed to retrieve connection string for the device.");
+        }
 
         // Insert into the database
+        console.log("Inserting device into the database...");
         const pool = await sql.connect(config);
         await pool
             .request()
@@ -131,6 +137,7 @@ app.post("/api/devices", async (req, res) => {
             `);
 
         // Return the device details including the connection string
+        console.log("Device successfully created.");
         res.status(201).json({
             message: "Device created successfully!",
             deviceId,
@@ -141,6 +148,7 @@ app.post("/api/devices", async (req, res) => {
         res.status(500).json({ error: "An error occurred while creating the device." });
     }
 });
+
 
 // Route to fetch all devices for a user
 app.get("/api/devices/:phoneNumber", async (req, res) => {
