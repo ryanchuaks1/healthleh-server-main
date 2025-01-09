@@ -112,7 +112,8 @@ app.post("/api/devices", async (req, res) => {
         // Retrieve the connection string
         const { hostName } = result._response.parsedBody;
         console.log("res:", result);
-        const generatedConnectionString = `HostName=${hostName};DeviceId=${deviceId};SharedAccessKey=${result.authentication.symmetricKey.primaryKey}`;
+        // const generatedConnectionString = `HostName=${hostName};DeviceId=${deviceId};SharedAccessKey=${result.authentication.symmetricKey.primaryKey}`;
+        const generatedConnectionString = "testing";
 
         // Insert into the database
         const pool = await sql.connect(config);
