@@ -113,8 +113,8 @@ app.post("/api/devices", async (req, res) => {
         // Retrieve the connection string for the created device
         console.log("Fetching connection string for the device...");
         const result = await registry.get(deviceId);
-        const { hostName } = result._response.parsedBody;
-        const generatedConnectionString = `HostName=${hostName};DeviceId=${deviceId};SharedAccessKey=${result.authentication.symmetricKey.primaryKey}`;
+        const { hostName } = connectionString.split(";")[0].split("=")[1];
+        const generatedConnectionString = `HostName=${hostName};DeviceId=${deviceId};SharedAccessKey=${result.responseBody.authentication.symmetricKey.primaryKey}`;
 
         if (!hostName || !result.authentication.symmetricKey.primaryKey) {
             throw new Error("Failed to retrieve connection string for the device.");
