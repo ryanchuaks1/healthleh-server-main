@@ -116,7 +116,7 @@ app.post("/api/devices", async (req, res) => {
         const { hostName } = connectionString.split(";")[0].split("=")[1];
         const generatedConnectionString = `HostName=${hostName};DeviceId=${deviceId};SharedAccessKey=${result.responseBody.authentication.symmetricKey.primaryKey}`;
 
-        if (!hostName || !result.authentication.symmetricKey.primaryKey) {
+        if (!hostName || !result.responseBody.authentication.symmetricKey.primaryKey) {
             throw new Error("Failed to retrieve connection string for the device.");
         }
 
