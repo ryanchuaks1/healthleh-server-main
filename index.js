@@ -99,14 +99,19 @@ app.post("/api/devices", async (req, res) => {
   const deviceId = `device-${Date.now()}`;
 
   try {
-    // Create the device in IoT Hub
+    // Create the device in IoT Hub with symmetric key authentication
     console.log("Creating device in IoT Hub...");
-    const device = { deviceId };
+    const device = {
+      deviceId,
+      authentication: {
+        type: "sas", // Ensure symmetric key authentication is used
+      },
+    };
     await registry.create(device);
 
     // Retrieve the connection string for the created device
     console.log("Fetching connection string for the device...");
-    const result = await registry.get(deviceId);
+    const result = await registry.get(deviceId); // Fetch the created device
     const hostName = process.env.IOT_HUB_HOSTNAME; // Use IoT Hub's hostname from env
     const primaryKey = result.authentication.symmetricKey?.primaryKey;
 
@@ -129,7 +134,6 @@ app.post("/api/devices", async (req, res) => {
                 INSERT INTO Devices (DeviceId, DeviceName, ConnectionString, DeviceType, Mode, PhoneNumber)
                 VALUES (@deviceId, @deviceName, @connectionString, @deviceType, @mode, @phoneNumber)
             `);
-
     // Return the device details including the connection string
     console.log("Device successfully created.");
     res.status(201).json({
