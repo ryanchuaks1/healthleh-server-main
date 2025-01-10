@@ -104,7 +104,10 @@ app.post("/api/devices", async (req, res) => {
     const device = {
       deviceId,
       authentication: {
-        type: "sas", // Ensure symmetric key authentication is used
+        symmetricKey: {
+          primaryKey: "",
+          secondaryKey: "",
+        },
       },
     };
     await registry.create(device);
@@ -118,6 +121,7 @@ app.post("/api/devices", async (req, res) => {
     if (!hostName || !primaryKey) {
       throw new Error("Failed to retrieve connection string for the device.");
     }
+
     const generatedConnectionString = `HostName=${hostName};DeviceId=${deviceId};SharedAccessKey=${primaryKey}`;
 
     // Insert into the database
@@ -134,6 +138,7 @@ app.post("/api/devices", async (req, res) => {
                 INSERT INTO Devices (DeviceId, DeviceName, ConnectionString, DeviceType, Mode, PhoneNumber)
                 VALUES (@deviceId, @deviceName, @connectionString, @deviceType, @mode, @phoneNumber)
             `);
+
     // Return the device details including the connection string
     console.log("Device successfully created.");
     res.status(201).json({
