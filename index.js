@@ -18,14 +18,14 @@ app.use(
 );
 
 const config = {
-    user: process.env.DB_USER,
-    password: process.env.DB_PASS,
-    server: process.env.DB_SERVER,
-    database: process.env.DB_NAME,
-    options: {
-        encrypt: true,
-        trustServerCertificate: false,
-    },
+  user: process.env.DB_USER,
+  password: process.env.DB_PASS,
+  server: process.env.DB_SERVER,
+  database: process.env.DB_NAME,
+  options: {
+    encrypt: true,
+    trustServerCertificate: false,
+  },
 };
 
 // IoT Hub Registry
@@ -92,7 +92,6 @@ app.delete("/api/users/:phoneNumber", async (req, res) => {
     res.status(500).send({ error: error.message });
   }
 });
-
 
 // Route to add a device to IoT Hub and the database
 app.post("/api/devices", async (req, res) => {
@@ -191,32 +190,31 @@ app.delete("/api/devices/:deviceId", async (req, res) => {
     const pool = await sql.connect(config);
     const result = await pool.request().input("deviceId", sql.VarChar, deviceId).query("DELETE FROM Devices WHERE deviceId = @deviceId");
 
-        if (result.rowsAffected[0] > 0) {
-            res.status(200).json({ message: "Device deleted successfully!" });
-        } else {
-            res.status(404).json({ message: "Device not found" });
-        }
-    } catch (error) {
-        console.error("Error deleting device:", error);
-        res.status(500).json({ error: error.message });
+    if (result.rowsAffected[0] > 0) {
+      res.status(200).json({ message: "Device deleted successfully!" });
+    } else {
+      res.status(404).json({ message: "Device not found" });
     }
+  } catch (error) {
+    console.error("Error deleting device:", error);
+    res.status(500).json({ error: error.message });
+  }
 });
-
 
 // Route to test the database connection
 app.get("/test-connection", async (req, res) => {
-    try {
-        const pool = await sql.connect(config);
-        console.log("Database connection successful.");
-        res.send("Connected to the database!");
-    } catch (error) {
-        console.error("Database connection failed:", error);
-        res.status(500).send({ error: error.message });
-    }
+  try {
+    const pool = await sql.connect(config);
+    console.log("Database connection successful.");
+    res.send("Connected to the database!");
+  } catch (error) {
+    console.error("Database connection failed:", error);
+    res.status(500).send({ error: error.message });
+  }
 });
 
 // Start the server
 const port = process.env.PORT || 3000;
 app.listen(port, () => {
-    console.log(`Server is running on port ${port}`);
+  console.log(`Server is running on port ${port}`);
 });
