@@ -31,6 +31,8 @@ const config = {
 // IoT Hub Registry
 const registry = Registry.fromConnectionString(process.env.IOT_HUB_CONNECTION_STRING);
 
+const hostName = process.env.IOT_HUB_HOSTNAME; // Use IoT Hub's hostname from env
+
 // Root endpoint
 app.get("/", (req, res) => {
   res.send("Server is running!");
@@ -105,8 +107,6 @@ app.post("/api/devices", async (req, res) => {
 
     // Retrieve the connection string for the created device
     const result = await registry.get(deviceId); // Fetch the created device
-
-    const hostName = process.env.IOT_HUB_HOSTNAME; // Use IoT Hub's hostname from env
     const primaryKey = result.responseBody.authentication.symmetricKey.primaryKey;
 
     if (!hostName || !primaryKey) {
@@ -212,6 +212,84 @@ app.get("/test-connection", async (req, res) => {
     res.status(500).send({ error: error.message });
   }
 });
+
+// Route to add a goal
+app.post("/api/goals", async (req, res) => {
+  const { phoneNumber, goalType, goal } = req.body;
+  try {
+    const pool = await sql.connect(config);
+    await pool
+      .request()
+      .input("phoneNumber", sql.VarChar, phoneNumber)
+      .input("goalType", sql.VarChar, goalType)
+      .input("goal", sql.VarChar, goal).query(`
+          INSERT INTO Goals (PhoneNumber, GoalType, Goal)
+          VALUES (@phoneNumber, @goalType, @goal)
+        `);
+    res.status(201).send({ message: "Goal added successfully!" });
+  } catch (error) {
+    console.error("Error adding goal:", error);
+    res.status(500).send({ error: error.message });
+  }
+});
+
+// Get all goals for a user
+app.get("/api/goals/:phoneNumber", async (req, res) => {
+  const { phoneNumber } = req.params;
+  try {
+    const pool = await sql.connect(config);
+    const result = await pool.request().input("phoneNumber", sql.VarChar, phoneNumber).query("SELECT * FROM Goals WHERE PhoneNumber = @phoneNumber");
+    res.status(200).json(result.recordset);
+  } catch (error) {
+    console.error("Error fetching goals:", error);
+    res.status(500).send({ error: error.message });
+  }
+});
+
+// Delete a goal by ID
+app.delete("/api/goals/:id", async (req, res) => {
+  const { id } = req.params;
+  try {
+    const pool = await sql.connect(config);
+    const result = await pool.request().input("id", sql.Int, id).query("DELETE FROM Goals WHERE Id = @id");
+    if (result.rowsAffected[0] > 0) {
+      res.status(200).send({ message: "Goal deleted successfully!" });
+    } else {
+      res.status(404).send({ message: "Goal not found" });
+    }
+  } catch (error) {
+    console.error("Error deleting goal:", error);
+    res.status(500).send({ error: error.message });
+  }
+});
+
+// Edit a goal by ID
+app.put("/api/goals/:id", async (req, res) => {
+  const { id } = req.params;
+  const { phoneNumber, goalType, goal } = req.body;
+  try {
+    const pool = await sql.connect(config);
+    const result = await pool
+      .request()
+      .input("id", sql.Int, id)
+      .input("phoneNumber", sql.VarChar, phoneNumber)
+      .input("goalType", sql.VarChar, goalType)
+      .input("goal", sql.VarChar, goal).query(`
+          UPDATE Goals
+          SET PhoneNumber = @phoneNumber, GoalType = @goalType, Goal = @goal
+          WHERE Id = @id
+        `);
+    if (result.rowsAffected[0] > 0) {
+      res.status(200).send({ message: "Goal updated successfully!" });
+    } else {
+      res.status(404).send({ message: "Goal not found" });
+    }
+  } catch (error) {
+    console.error("Error updating goal:", error);
+    res.status(500).send({ error: error.message });
+  }
+});
+
 
 // Start the server
 const port = process.env.PORT || 3000;
