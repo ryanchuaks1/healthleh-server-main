@@ -218,11 +218,7 @@ app.post("/api/goals", async (req, res) => {
   const { phoneNumber, goalType, goal } = req.body;
   try {
     const pool = await sql.connect(config);
-    await pool
-      .request()
-      .input("phoneNumber", sql.VarChar, phoneNumber)
-      .input("goalType", sql.VarChar, goalType)
-      .input("goal", sql.VarChar, goal).query(`
+    await pool.request().input("phoneNumber", sql.VarChar, phoneNumber).input("goalType", sql.VarChar, goalType).input("goal", sql.VarChar, goal).query(`
           INSERT INTO Goals (PhoneNumber, GoalType, Goal)
           VALUES (@phoneNumber, @goalType, @goal)
         `);
@@ -290,6 +286,145 @@ app.put("/api/goals/:id", async (req, res) => {
   }
 });
 
+// Add a tracked activity
+app.post("/api/tracked-activities", async (req, res) => {
+  const { phoneNumber, steps, cumulativeStepsToday, distanceKm, caloriesBurned, distanceFromHome } = req.body;
+  try {
+    const pool = await sql.connect(config);
+    await pool
+      .request()
+      .input("phoneNumber", sql.VarChar, phoneNumber)
+      .input("steps", sql.Int, steps)
+      .input("cumulativeStepsToday", sql.Int, cumulativeStepsToday)
+      .input("distanceKm", sql.Decimal(5, 2), distanceKm)
+      .input("caloriesBurned", sql.Int, caloriesBurned)
+      .input("distanceFromHome", sql.Decimal(6, 2), distanceFromHome)
+      .query(
+        "INSERT INTO TrackedActivities (phoneNumber, steps, cumulativeStepsToday, distanceKm, caloriesBurned, distanceFromHome) VALUES (@phoneNumber, @steps, @cumulativeStepsToday, @distanceKm, @caloriesBurned, @distanceFromHome)"
+      );
+    res.status(200).send({ message: "Tracked activity added successfully!" });
+  } catch (error) {
+    res.status(500).send({ error: error.message });
+  }
+});
+
+// Get all tracked activities for a user
+app.get("/api/tracked-activities/:phoneNumber", async (req, res) => {
+  try {
+    const pool = await sql.connect(config);
+    const result = await pool
+      .request()
+      .input("phoneNumber", sql.VarChar, req.params.phoneNumber)
+      .query("SELECT * FROM TrackedActivities WHERE phoneNumber = @phoneNumber");
+    res.status(200).json(result.recordset);
+  } catch (error) {
+    res.status(500).send({ error: error.message });
+  }
+});
+
+// Update a tracked activity
+app.put("/api/tracked-activities/:id", async (req, res) => {
+  const { steps, cumulativeStepsToday, distanceKm, caloriesBurned, distanceFromHome } = req.body;
+  try {
+    const pool = await sql.connect(config);
+    await pool
+      .request()
+      .input("id", sql.Int, req.params.id)
+      .input("steps", sql.Int, steps)
+      .input("cumulativeStepsToday", sql.Int, cumulativeStepsToday)
+      .input("distanceKm", sql.Decimal(5, 2), distanceKm)
+      .input("caloriesBurned", sql.Int, caloriesBurned)
+      .input("distanceFromHome", sql.Decimal(6, 2), distanceFromHome)
+      .query(
+        "UPDATE TrackedActivities SET steps = @steps, cumulativeStepsToday = @cumulativeStepsToday, distanceKm = @distanceKm, caloriesBurned = @caloriesBurned, distanceFromHome = @distanceFromHome WHERE id = @id"
+      );
+    res.status(200).send({ message: "Tracked activity updated successfully!" });
+  } catch (error) {
+    res.status(500).send({ error: error.message });
+  }
+});
+
+// Delete a tracked activity
+app.delete("/api/tracked-activities/:id", async (req, res) => {
+  try {
+    const pool = await sql.connect(config);
+    await pool.request().input("id", sql.Int, req.params.id).query("DELETE FROM TrackedActivities WHERE id = @id");
+    res.status(200).send({ message: "Tracked activity deleted successfully!" });
+  } catch (error) {
+    res.status(500).send({ error: error.message });
+  }
+});
+
+// Add a user exercise
+app.post("/api/user-exercises", async (req, res) => {
+  const { phoneNumber, exerciseType, durationMinutes, caloriesBurned, intensity, rating, distanceFromHome } = req.body;
+  try {
+    const pool = await sql.connect(config);
+    await pool
+      .request()
+      .input("phoneNumber", sql.VarChar, phoneNumber)
+      .input("exerciseType", sql.VarChar, exerciseType)
+      .input("durationMinutes", sql.Int, durationMinutes)
+      .input("caloriesBurned", sql.Int, caloriesBurned)
+      .input("intensity", sql.Int, intensity)
+      .input("rating", sql.Int, rating)
+      .input("distanceFromHome", sql.Decimal(6, 2), distanceFromHome)
+      .query(
+        "INSERT INTO UserExercises (phoneNumber, exerciseType, durationMinutes, caloriesBurned, intensity, rating, distanceFromHome) VALUES (@phoneNumber, @exerciseType, @durationMinutes, @caloriesBurned, @intensity, @rating, @distanceFromHome)"
+      );
+    res.status(200).send({ message: "User exercise added successfully!" });
+  } catch (error) {
+    res.status(500).send({ error: error.message });
+  }
+});
+
+// Get all user exercises for a user
+app.get("/api/user-exercises/:phoneNumber", async (req, res) => {
+  try {
+    const pool = await sql.connect(config);
+    const result = await pool
+      .request()
+      .input("phoneNumber", sql.VarChar, req.params.phoneNumber)
+      .query("SELECT * FROM UserExercises WHERE phoneNumber = @phoneNumber");
+    res.status(200).json(result.recordset);
+  } catch (error) {
+    res.status(500).send({ error: error.message });
+  }
+});
+
+// Update a user exercise
+app.put("/api/user-exercises/:id", async (req, res) => {
+  const { exerciseType, durationMinutes, caloriesBurned, intensity, rating, distanceFromHome } = req.body;
+  try {
+    const pool = await sql.connect(config);
+    await pool
+      .request()
+      .input("id", sql.Int, req.params.id)
+      .input("exerciseType", sql.VarChar, exerciseType)
+      .input("durationMinutes", sql.Int, durationMinutes)
+      .input("caloriesBurned", sql.Int, caloriesBurned)
+      .input("intensity", sql.Int, intensity)
+      .input("rating", sql.Int, rating)
+      .input("distanceFromHome", sql.Decimal(6, 2), distanceFromHome)
+      .query(
+        "UPDATE UserExercises SET exerciseType = @exerciseType, durationMinutes = @durationMinutes, caloriesBurned = @caloriesBurned, intensity = @intensity, rating = @rating, distanceFromHome = @distanceFromHome WHERE id = @id"
+      );
+    res.status(200).send({ message: "User exercise updated successfully!" });
+  } catch (error) {
+    res.status(500).send({ error: error.message });
+  }
+});
+
+// Delete a user exercise
+app.delete("/api/user-exercises/:id", async (req, res) => {
+  try {
+    const pool = await sql.connect(config);
+    await pool.request().input("id", sql.Int, req.params.id).query("DELETE FROM UserExercises WHERE id = @id");
+    res.status(200).send({ message: "User exercise deleted successfully!" });
+  } catch (error) {
+    res.status(500).send({ error: error.message });
+  }
+});
 
 // Start the server
 const port = process.env.PORT || 3000;
