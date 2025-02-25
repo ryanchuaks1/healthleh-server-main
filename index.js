@@ -17,7 +17,6 @@ app.use(
   })
 );
 
-
 const config = {
   user: process.env.DB_USER,
   password: process.env.DB_PASS,
@@ -32,8 +31,6 @@ const config = {
 // IoT Hub Registry
 const registry = Registry.fromConnectionString(process.env.IOT_HUB_CONNECTION_STRING);
 const hostName = process.env.IOT_HUB_HOSTNAME; // Use IoT Hub's hostname from env
-
-
 
 // Root endpoint
 app.get("/", (req, res) => {
