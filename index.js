@@ -17,21 +17,21 @@ app.use(
   })
 );
 
-const config = {
-  user: process.env.DB_USER,
-  password: process.env.DB_PASS,
-  server: process.env.DB_SERVER,
-  database: process.env.DB_NAME,
-  options: {
-    encrypt: true,
-    trustServerCertificate: false,
-  },
-};
 
-// IoT Hub Registry
-const registry = Registry.fromConnectionString(process.env.IOT_HUB_CONNECTION_STRING);
+// const config = {
+//   user: process.env.DB_USER,
+//   password: process.env.DB_PASS,
+//   server: process.env.DB_SERVER,
+//   database: process.env.DB_NAME,
+//   options: {
+//     encrypt: true,
+//     trustServerCertificate: false,
+//   },
+// };
 
-const hostName = process.env.IOT_HUB_HOSTNAME; // Use IoT Hub's hostname from env
+// // IoT Hub Registry
+// const registry = Registry.fromConnectionString(process.env.IOT_HUB_CONNECTION_STRING);
+// const hostName = process.env.IOT_HUB_HOSTNAME; // Use IoT Hub's hostname from env
 
 // Root endpoint
 app.get("/", (req, res) => {
@@ -150,33 +150,43 @@ app.get("/api/devices/:phoneNumber", async (req, res) => {
   }
 });
 
-// Route to update a device's mode
+// Route to update a device's mode and name
 app.put("/api/devices/:deviceId", async (req, res) => {
   const { deviceId } = req.params;
-  const { mode } = req.body;
+  const { mode, deviceName } = req.body;
 
-  if (!mode) {
-    return res.status(400).json({ error: "Mode is required." });
+  if (!mode || !deviceName) {
+    return res
+      .status(400)
+      .json({ error: "Both mode and deviceName are required." });
   }
 
   try {
     const pool = await sql.connect(config);
-    const result = await pool.request().input("deviceId", sql.VarChar, deviceId).input("mode", sql.VarChar, mode).query(`
-                UPDATE Devices
-                SET mode = @mode
-                WHERE deviceId = @deviceId
-            `);
+    const result = await pool
+      .request()
+      .input("deviceId", sql.VarChar, deviceId)
+      .input("mode", sql.VarChar, mode)
+      .input("deviceName", sql.VarChar, deviceName)
+      .query(`
+        UPDATE Devices
+        SET mode = @mode, deviceName = @deviceName
+        WHERE deviceId = @deviceId
+      `);
 
     if (result.rowsAffected[0] > 0) {
-      res.status(200).json({ message: "Device mode updated successfully." });
+      res.status(200).json({ message: "Device updated successfully." });
     } else {
       res.status(404).json({ error: "Device not found." });
     }
   } catch (error) {
-    console.error("Error updating device mode:", error);
-    res.status(500).json({ error: "An error occurred while updating the device mode." });
+    console.error("Error updating device:", error);
+    res
+      .status(500)
+      .json({ error: "An error occurred while updating the device." });
   }
 });
+
 
 // Route to delete a device from IoT Hub and the database
 app.delete("/api/devices/:deviceId", async (req, res) => {
