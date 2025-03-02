@@ -59,7 +59,6 @@ app.post("/api/users", async (req, res) => {
     res.status(500).send({ error: error.message });
   }
 });
-
 // Get a user by Phone Number
 app.get("/api/users/:phoneNumber", async (req, res) => {
   const { phoneNumber } = req.params;
@@ -76,7 +75,6 @@ app.get("/api/users/:phoneNumber", async (req, res) => {
     res.status(500).send({ error: error.message });
   }
 });
-
 // Delete a user by Phone Number
 app.delete("/api/users/:phoneNumber", async (req, res) => {
   const { phoneNumber } = req.params;
@@ -134,7 +132,6 @@ app.post("/api/devices", async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
-
 // Route to fetch all devices for a user
 app.get("/api/devices/:phoneNumber", async (req, res) => {
   const { phoneNumber } = req.params;
@@ -148,7 +145,6 @@ app.get("/api/devices/:phoneNumber", async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
-
 // Route to update a device's mode and name
 app.put("/api/devices/:deviceId", async (req, res) => {
   const { deviceId } = req.params;
@@ -185,8 +181,6 @@ app.put("/api/devices/:deviceId", async (req, res) => {
       .json({ error: "An error occurred while updating the device." });
   }
 });
-
-
 // Route to delete a device from IoT Hub and the database
 app.delete("/api/devices/:deviceId", async (req, res) => {
   const { deviceId } = req.params;
@@ -210,18 +204,6 @@ app.delete("/api/devices/:deviceId", async (req, res) => {
   }
 });
 
-// Route to test the database connection
-app.get("/test-connection", async (req, res) => {
-  try {
-    const pool = await sql.connect(config);
-    console.log("Database connection successful.");
-    res.send("Connected to the database!");
-  } catch (error) {
-    console.error("Database connection failed:", error);
-    res.status(500).send({ error: error.message });
-  }
-});
-
 // Route to add a goal
 app.post("/api/goals", async (req, res) => {
   const { phoneNumber, goalType, goal } = req.body;
@@ -237,7 +219,6 @@ app.post("/api/goals", async (req, res) => {
     res.status(500).send({ error: error.message });
   }
 });
-
 // Get all goals for a user
 app.get("/api/goals/:phoneNumber", async (req, res) => {
   const { phoneNumber } = req.params;
@@ -250,7 +231,6 @@ app.get("/api/goals/:phoneNumber", async (req, res) => {
     res.status(500).send({ error: error.message });
   }
 });
-
 // Delete a goal by ID
 app.delete("/api/goals/:id", async (req, res) => {
   const { id } = req.params;
@@ -267,7 +247,6 @@ app.delete("/api/goals/:id", async (req, res) => {
     res.status(500).send({ error: error.message });
   }
 });
-
 // Edit a goal by ID
 app.put("/api/goals/:id", async (req, res) => {
   const { id } = req.params;
@@ -316,7 +295,6 @@ app.post("/api/tracked-activities", async (req, res) => {
     res.status(500).send({ error: error.message });
   }
 });
-
 // Get all tracked activities for a user
 app.get("/api/tracked-activities/:phoneNumber", async (req, res) => {
   try {
@@ -330,7 +308,6 @@ app.get("/api/tracked-activities/:phoneNumber", async (req, res) => {
     res.status(500).send({ error: error.message });
   }
 });
-
 // Update a tracked activity
 app.put("/api/tracked-activities/:id", async (req, res) => {
   const { steps, cumulativeStepsToday, distanceKm, caloriesBurned, distanceFromHome } = req.body;
@@ -352,7 +329,6 @@ app.put("/api/tracked-activities/:id", async (req, res) => {
     res.status(500).send({ error: error.message });
   }
 });
-
 // Delete a tracked activity
 app.delete("/api/tracked-activities/:id", async (req, res) => {
   try {
@@ -386,21 +362,19 @@ app.post("/api/user-exercises", async (req, res) => {
     res.status(500).send({ error: error.message });
   }
 });
-
-// Get all user exercises for a user
+// Get all user exercises for a user, ordered by the latest exerciseDate first
 app.get("/api/user-exercises/:phoneNumber", async (req, res) => {
   try {
     const pool = await sql.connect(config);
     const result = await pool
       .request()
       .input("phoneNumber", sql.VarChar, req.params.phoneNumber)
-      .query("SELECT * FROM UserExercises WHERE phoneNumber = @phoneNumber");
+      .query("SELECT * FROM UserExercises WHERE phoneNumber = @phoneNumber ORDER BY exerciseDate DESC");
     res.status(200).json(result.recordset);
   } catch (error) {
     res.status(500).send({ error: error.message });
   }
 });
-
 // Update a user exercise
 app.put("/api/user-exercises/:id", async (req, res) => {
   const { exerciseType, durationMinutes, caloriesBurned, intensity, rating, distanceFromHome } = req.body;
@@ -423,7 +397,6 @@ app.put("/api/user-exercises/:id", async (req, res) => {
     res.status(500).send({ error: error.message });
   }
 });
-
 // Delete a user exercise
 app.delete("/api/user-exercises/:id", async (req, res) => {
   try {
