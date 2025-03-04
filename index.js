@@ -375,6 +375,22 @@ app.get("/api/user-exercises/:phoneNumber", async (req, res) => {
     res.status(500).send({ error: error.message });
   }
 });
+// Get a user exercise by id
+app.get("/api/user-exercises/id/:id", async (req, res) => {
+  try {
+    const pool = await sql.connect(config);
+    const result = await pool
+      .request()
+      .input("id", sql.Int, req.params.id)
+      .query("SELECT * FROM UserExercises WHERE id = @id");
+    if (result.recordset.length === 0) {
+      return res.status(404).send({ message: "User exercise not found" });
+    }
+    res.status(200).json(result.recordset[0]);
+  } catch (error) {
+    res.status(500).send({ error: error.message });
+  }
+});
 // Update a user exercise
 app.put("/api/user-exercises/:id", async (req, res) => {
   const { exerciseType, durationMinutes, caloriesBurned, intensity, rating, distanceFromHome } = req.body;
