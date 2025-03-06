@@ -151,18 +151,12 @@ app.put("/api/devices/:deviceId", async (req, res) => {
   const { mode, deviceName } = req.body;
 
   if (!mode || !deviceName) {
-    return res
-      .status(400)
-      .json({ error: "Both mode and deviceName are required." });
+    return res.status(400).json({ error: "Both mode and deviceName are required." });
   }
 
   try {
     const pool = await sql.connect(config);
-    const result = await pool
-      .request()
-      .input("deviceId", sql.VarChar, deviceId)
-      .input("mode", sql.VarChar, mode)
-      .input("deviceName", sql.VarChar, deviceName)
+    const result = await pool.request().input("deviceId", sql.VarChar, deviceId).input("mode", sql.VarChar, mode).input("deviceName", sql.VarChar, deviceName)
       .query(`
         UPDATE Devices
         SET mode = @mode, deviceName = @deviceName
@@ -176,9 +170,7 @@ app.put("/api/devices/:deviceId", async (req, res) => {
     }
   } catch (error) {
     console.error("Error updating device:", error);
-    res
-      .status(500)
-      .json({ error: "An error occurred while updating the device." });
+    res.status(500).json({ error: "An error occurred while updating the device." });
   }
 });
 // Route to delete a device from IoT Hub and the database
@@ -392,10 +384,7 @@ app.get("/api/user-exercises/last/:phoneNumber", async (req, res) => {
 app.get("/api/user-exercises/id/:id", async (req, res) => {
   try {
     const pool = await sql.connect(config);
-    const result = await pool
-      .request()
-      .input("id", sql.Int, req.params.id)
-      .query("SELECT * FROM UserExercises WHERE id = @id");
+    const result = await pool.request().input("id", sql.Int, req.params.id).query("SELECT * FROM UserExercises WHERE id = @id");
     if (result.recordset.length === 0) {
       return res.status(404).send({ message: "User exercise not found" });
     }
@@ -449,8 +438,7 @@ app.post("/api/dailyrecords", async (req, res) => {
       .input("totalSteps", sql.Int, totalSteps)
       .input("totalCaloriesBurned", sql.Decimal(10, 2), totalCaloriesBurned)
       .input("exerciseDurationMinutes", sql.Int, exerciseDurationMinutes)
-      .input("weight", sql.Decimal(5, 2), weight)
-      .query(`
+      .input("weight", sql.Decimal(5, 2), weight).query(`
         INSERT INTO dailyrecords (phoneNumber, recordDate, totalSteps, totalCaloriesBurned, exerciseDurationMinutes, weight)
         VALUES (@phoneNumber, @recordDate, @totalSteps, @totalCaloriesBurned, @exerciseDurationMinutes, @weight)
       `);
@@ -501,15 +489,35 @@ app.put("/api/dailyrecords/:phoneNumber/:recordDate", async (req, res) => {
   const { totalSteps, totalCaloriesBurned, exerciseDurationMinutes, weight } = req.body;
   try {
     const pool = await sql.connect(config);
-    const result = await pool
+
+    // Retrieve the existing record
+    const selectResult = await pool
       .request()
       .input("phoneNumber", sql.VarChar, phoneNumber)
       .input("recordDate", sql.Date, recordDate)
-      .input("totalSteps", sql.Int, totalSteps)
-      .input("totalCaloriesBurned", sql.Decimal(10, 2), totalCaloriesBurned)
-      .input("exerciseDurationMinutes", sql.Int, exerciseDurationMinutes)
-      .input("weight", sql.Decimal(5, 2), weight)
-      .query(`
+      .query("SELECT * FROM dailyrecords WHERE phoneNumber = @phoneNumber AND recordDate = @recordDate");
+
+    if (selectResult.recordset.length === 0) {
+      return res.status(404).send({ message: "Daily record not found" });
+    }
+
+    const currentRecord = selectResult.recordset[0];
+
+    // Merge: if a new value is provided, use it; otherwise keep the current value.
+    const updatedTotalSteps = totalSteps !== undefined ? totalSteps : currentRecord.totalSteps;
+    const updatedTotalCaloriesBurned = totalCaloriesBurned !== undefined ? totalCaloriesBurned : currentRecord.totalCaloriesBurned;
+    const updatedExerciseDurationMinutes = exerciseDurationMinutes !== undefined ? exerciseDurationMinutes : currentRecord.exerciseDurationMinutes;
+    const updatedWeight = weight !== undefined ? weight : currentRecord.weight;
+
+    // Update the record with merged values
+    const updateResult = await pool
+      .request()
+      .input("phoneNumber", sql.VarChar, phoneNumber)
+      .input("recordDate", sql.Date, recordDate)
+      .input("totalSteps", sql.Int, updatedTotalSteps)
+      .input("totalCaloriesBurned", sql.Decimal(10, 2), updatedTotalCaloriesBurned)
+      .input("exerciseDurationMinutes", sql.Int, updatedExerciseDurationMinutes)
+      .input("weight", sql.Decimal(5, 2), updatedWeight).query(`
         UPDATE dailyrecords
         SET totalSteps = @totalSteps,
             totalCaloriesBurned = @totalCaloriesBurned,
@@ -517,7 +525,8 @@ app.put("/api/dailyrecords/:phoneNumber/:recordDate", async (req, res) => {
             weight = @weight
         WHERE phoneNumber = @phoneNumber AND recordDate = @recordDate
       `);
-    if (result.rowsAffected[0] > 0) {
+
+    if (updateResult.rowsAffected[0] > 0) {
       res.status(200).send({ message: "Daily record updated successfully!" });
     } else {
       res.status(404).send({ message: "Daily record not found" });
@@ -548,10 +557,8 @@ app.delete("/api/dailyrecords/:phoneNumber/:recordDate", async (req, res) => {
   }
 });
 
-
 // Start the server
 const port = process.env.PORT || 3000;
 app.listen(port, () => {
   console.log(`Server is running on port ${port}`);
 });
-
