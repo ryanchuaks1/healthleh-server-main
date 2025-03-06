@@ -375,6 +375,19 @@ app.get("/api/user-exercises/:phoneNumber", async (req, res) => {
     res.status(500).send({ error: error.message });
   }
 });
+// Get the user's last 14 activities
+app.get("/api/user-exercises/last/:phoneNumber", async (req, res) => {
+  try {
+    const pool = await sql.connect(config);
+    const result = await pool
+      .request()
+      .input("phoneNumber", sql.VarChar, req.params.phoneNumber)
+      .query("SELECT TOP 14 * FROM UserExercises WHERE phoneNumber = @phoneNumber ORDER BY exerciseDate DESC");
+    res.status(200).json(result.recordset);
+  } catch (error) {
+    res.status(500).send({ error: error.message });
+  }
+});
 // Get a user exercise by id
 app.get("/api/user-exercises/id/:id", async (req, res) => {
   try {
@@ -423,6 +436,118 @@ app.delete("/api/user-exercises/:id", async (req, res) => {
     res.status(500).send({ error: error.message });
   }
 });
+
+// Create a new daily record
+app.post("/api/dailyrecords", async (req, res) => {
+  const { phoneNumber, recordDate, totalSteps, totalCaloriesBurned, exerciseDurationMinutes, weight } = req.body;
+  try {
+    const pool = await sql.connect(config);
+    await pool
+      .request()
+      .input("phoneNumber", sql.VarChar, phoneNumber)
+      .input("recordDate", sql.Date, recordDate)
+      .input("totalSteps", sql.Int, totalSteps)
+      .input("totalCaloriesBurned", sql.Decimal(10, 2), totalCaloriesBurned)
+      .input("exerciseDurationMinutes", sql.Int, exerciseDurationMinutes)
+      .input("weight", sql.Decimal(5, 2), weight)
+      .query(`
+        INSERT INTO dailyrecords (phoneNumber, recordDate, totalSteps, totalCaloriesBurned, exerciseDurationMinutes, weight)
+        VALUES (@phoneNumber, @recordDate, @totalSteps, @totalCaloriesBurned, @exerciseDurationMinutes, @weight)
+      `);
+    res.status(201).send({ message: "Daily record created successfully!" });
+  } catch (error) {
+    console.error("Error creating daily record:", error);
+    res.status(500).send({ error: error.message });
+  }
+});
+// Get all daily records for a user
+app.get("/api/dailyrecords/:phoneNumber", async (req, res) => {
+  const { phoneNumber } = req.params;
+  try {
+    const pool = await sql.connect(config);
+    const result = await pool
+      .request()
+      .input("phoneNumber", sql.VarChar, phoneNumber)
+      .query("SELECT * FROM dailyrecords WHERE phoneNumber = @phoneNumber ORDER BY recordDate DESC");
+    res.status(200).json(result.recordset);
+  } catch (error) {
+    console.error("Error fetching daily records:", error);
+    res.status(500).send({ error: error.message });
+  }
+});
+// Get a specific daily record for a user by recordDate
+app.get("/api/dailyrecords/:phoneNumber/:recordDate", async (req, res) => {
+  const { phoneNumber, recordDate } = req.params;
+  try {
+    const pool = await sql.connect(config);
+    const result = await pool
+      .request()
+      .input("phoneNumber", sql.VarChar, phoneNumber)
+      .input("recordDate", sql.Date, recordDate)
+      .query("SELECT * FROM dailyrecords WHERE phoneNumber = @phoneNumber AND recordDate = @recordDate");
+    if (result.recordset.length > 0) {
+      res.status(200).json(result.recordset[0]);
+    } else {
+      res.status(404).send({ message: "Daily record not found" });
+    }
+  } catch (error) {
+    console.error("Error fetching daily record:", error);
+    res.status(500).send({ error: error.message });
+  }
+});
+// Update a daily record for a user by recordDate
+app.put("/api/dailyrecords/:phoneNumber/:recordDate", async (req, res) => {
+  const { phoneNumber, recordDate } = req.params;
+  const { totalSteps, totalCaloriesBurned, exerciseDurationMinutes, weight } = req.body;
+  try {
+    const pool = await sql.connect(config);
+    const result = await pool
+      .request()
+      .input("phoneNumber", sql.VarChar, phoneNumber)
+      .input("recordDate", sql.Date, recordDate)
+      .input("totalSteps", sql.Int, totalSteps)
+      .input("totalCaloriesBurned", sql.Decimal(10, 2), totalCaloriesBurned)
+      .input("exerciseDurationMinutes", sql.Int, exerciseDurationMinutes)
+      .input("weight", sql.Decimal(5, 2), weight)
+      .query(`
+        UPDATE dailyrecords
+        SET totalSteps = @totalSteps,
+            totalCaloriesBurned = @totalCaloriesBurned,
+            exerciseDurationMinutes = @exerciseDurationMinutes,
+            weight = @weight
+        WHERE phoneNumber = @phoneNumber AND recordDate = @recordDate
+      `);
+    if (result.rowsAffected[0] > 0) {
+      res.status(200).send({ message: "Daily record updated successfully!" });
+    } else {
+      res.status(404).send({ message: "Daily record not found" });
+    }
+  } catch (error) {
+    console.error("Error updating daily record:", error);
+    res.status(500).send({ error: error.message });
+  }
+});
+// Delete a daily record for a user by recordDate
+app.delete("/api/dailyrecords/:phoneNumber/:recordDate", async (req, res) => {
+  const { phoneNumber, recordDate } = req.params;
+  try {
+    const pool = await sql.connect(config);
+    const result = await pool
+      .request()
+      .input("phoneNumber", sql.VarChar, phoneNumber)
+      .input("recordDate", sql.Date, recordDate)
+      .query("DELETE FROM dailyrecords WHERE phoneNumber = @phoneNumber AND recordDate = @recordDate");
+    if (result.rowsAffected[0] > 0) {
+      res.status(200).send({ message: "Daily record deleted successfully!" });
+    } else {
+      res.status(404).send({ message: "Daily record not found" });
+    }
+  } catch (error) {
+    console.error("Error deleting daily record:", error);
+    res.status(500).send({ error: error.message });
+  }
+});
+
 
 // Start the server
 const port = process.env.PORT || 3000;
