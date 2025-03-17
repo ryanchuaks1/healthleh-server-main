@@ -562,7 +562,7 @@ app.delete("/api/dailyrecords/:phoneNumber/:recordDate", async (req, res) => {
   }
 });
 
-// Push notifications
+// Push notifications registration endpoint
 app.post("/api/registerPush", async (req, res) => {
   const { pushToken, userId, platform } = req.body;
 
@@ -570,21 +570,18 @@ app.post("/api/registerPush", async (req, res) => {
     return res.status(400).send({ error: "Missing pushToken or userId" });
   }
 
+  // Log the tag that will be used for registration
+  console.log("Registering push token with tag (userId):", userId);
+
   // For web push notifications, use the new SDK and the Installation API
   if (platform && platform.toLowerCase() === "web") {
-    // Validate that pushToken is an object with required properties
     if (typeof pushToken !== "object" || !pushToken.endpoint || !pushToken.keys || !pushToken.keys.p256dh || !pushToken.keys.auth) {
       return res.status(400).send({ error: "Invalid web push subscription object" });
     }
-
     try {
-      // Create a client context using your connection string and hub name
       const context = createClientContext(process.env.NOTIFICATION_HUB_CONNECTION_STRING, process.env.NOTIFICATION_HUB_NAME);
-
-      // Build the browser installation object.
-      // Note: For browser installations, the expected JSON requires the pushChannel to be an object.
       const installation = createBrowserInstallation({
-        installationId: userId, // You can use the user ID or generate a unique installation id
+        installationId: userId, // Using userId as installationId
         pushChannel: {
           endpoint: String(pushToken.endpoint),
           p256dh: String(pushToken.keys.p256dh),
@@ -592,8 +589,7 @@ app.post("/api/registerPush", async (req, res) => {
         },
         tags: [userId],
       });
-
-      // Register (or update) the installation in your Notification Hub
+      console.log("Installation object:", installation);
       const result = await createOrUpdateInstallation(context, installation);
       console.log("Web push registration result:", result);
       return res.status(200).send({ message: "Web push token registered successfully", result });
@@ -609,6 +605,7 @@ app.post("/api/registerPush", async (req, res) => {
         console.error("Error registering APNS token:", error);
         return res.status(500).send({ error: error.message });
       }
+      console.log("APNS registration response:", response);
       res.status(200).send({ message: "APNS push token registered successfully", registrationId: response });
     });
   }
@@ -619,46 +616,58 @@ app.post("/api/registerPush", async (req, res) => {
         console.error("Error registering GCM token:", error);
         return res.status(500).send({ error: error.message });
       }
+      console.log("GCM registration response:", response);
       res.status(200).send({ message: "GCM push token registered successfully", registrationId: response });
     });
   }
 });
 
-// Endpoint to send a notification to a specific user (phone number)
+// Endpoint to send a notification to a specific user (using phone number as tag)
 app.post("/api/sendNotificationToUser", async (req, res) => {
-  // Expect the phoneNumber and payload in the body. The payload should include title, body, and optionally icon.
-  const { phoneNumber, payload } = req.body;
-
+  const { phoneNumber, payload, platform } = req.body;
   if (!phoneNumber || !payload || !payload.title || !payload.body) {
     return res.status(400).send({ error: "Missing required fields: phoneNumber, payload.title, and payload.body" });
   }
 
-  try {
-    // Create a client context for your Notification Hub
-    const context = createClientContext(
-      process.env.NOTIFICATION_HUB_CONNECTION_STRING,
-      process.env.NOTIFICATION_HUB_NAME
-    );
+  // If platform is "web", use the new SDK for browser notifications.
+  if (platform && platform.toLowerCase() === "web") {
+    try {
+      const context = createClientContext(process.env.NOTIFICATION_HUB_CONNECTION_STRING, process.env.NOTIFICATION_HUB_NAME);
+      const notificationContent = {
+        title: payload.title,
+        body: payload.body,
+        icon: payload.icon || "/icon.png",
+      };
+      const notification = createBrowserNotification(JSON.stringify(notificationContent));
+      const result = await sendNotification(context, notification, { tagExpression: phoneNumber });
+      console.log("Web notification send result:", result);
+      return res.status(200).send({ message: "Web notification sent", result });
+    } catch (error) {
+      console.error("Error sending web notification:", error);
+      return res.status(500).send({ error: error.message });
+    }
+  }
+  // Otherwise, assume native (Android/iOS) and use azure-sb for sending.
+  else {
+    // Build a native JSON payload for FCM (Android) notifications.
+    // For FCM, the payload is typically placed under a "data" property.
+    const nativePayload = JSON.stringify({
+      data: {
+        title: payload.title,
+        body: payload.body,
+      },
+    });
 
-    // Build the notification payload for browser notifications.
-    // (For native platforms, you would build the corresponding payload.)
-    const notificationContent = {
-      title: payload.title,
-      body: payload.body,
-      icon: payload.icon || "/icon.png", // adjust default icon as needed
-    };
-
-    // Create a browser notification using the JSON string payload.
-    const notification = createBrowserNotification(JSON.stringify(notificationContent));
-
-    // Send the notification by targeting installations tagged with the phone number.
-    // The tag expression will look for registrations with a tag exactly equal to the phone number.
-    const result = await sendNotification(context, notification, { tagExpression: phoneNumber });
-    console.log("Notification send result:", result);
-    res.status(200).send({ message: "Notification sent", result });
-  } catch (error) {
-    console.error("Error sending notification:", error);
-    res.status(500).send({ error: error.message });
+    // Create a valid tag expression by wrapping the phone number in parentheses and single quotes.
+    console.log("Sending native notification to tag expression:", phoneNumber);
+    notificationHubService.send(nativePayload, phoneNumber, (error, response) => {
+      if (error) {
+        console.error("Error sending native notification:", error);
+        return res.status(500).send({ error: error.message });
+      }
+      console.log("Native notification send response:", response);
+      res.status(200).send({ message: "Native notification sent", response });
+    });
   }
 });
 
