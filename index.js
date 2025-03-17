@@ -575,6 +575,7 @@ app.post("/api/registerPush", async (req, res) => {
     console.log("Stored native Expo push token for user:", userId, pushToken);
     return res.status(200).send({ message: "Native push token registered successfully", token: pushToken });
   } else if (platform && platform.toLowerCase() === "web") {
+    console.log("Push notifications on web are not supported with Expo push service");
     return res.status(400).send({ error: "Push notifications on web are not supported with Expo push service" });
   } else {
     return res.status(400).send({ error: "Unsupported platform" });
