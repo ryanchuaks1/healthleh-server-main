@@ -2,11 +2,8 @@ const express = require("express");
 const bodyParser = require("body-parser");
 const sql = require("mssql");
 const dotenv = require("dotenv");
-const azure = require("azure-sb");
 const cors = require("cors");
-const { Registry } = require("azure-iothub");
-const { createClientContext, createOrUpdateInstallation, sendNotification } = require("@azure/notification-hubs/api");
-const { createBrowserInstallation, createBrowserNotification } = require("@azure/notification-hubs");
+const axios = require("axios");
 
 dotenv.config();
 
@@ -20,6 +17,8 @@ app.use(
   })
 );
 
+// In-memory store for native Expo push tokens keyed by phone number
+const expoPushTokens = {};
 const config = {
   user: process.env.DB_USER,
   password: process.env.DB_PASS,
@@ -30,8 +29,6 @@ const config = {
     trustServerCertificate: false,
   },
 };
-
-const notificationHubService = azure.createNotificationHubService(process.env.NOTIFICATION_HUB_NAME, process.env.NOTIFICATION_HUB_CONNECTION_STRING);
 
 // IoT Hub Registry
 const registry = Registry.fromConnectionString(process.env.IOT_HUB_CONNECTION_STRING);
@@ -562,63 +559,24 @@ app.delete("/api/dailyrecords/:phoneNumber/:recordDate", async (req, res) => {
   }
 });
 
-// Push notifications registration endpoint
+// Push notifications registration endpoint using Expo push service
 app.post("/api/registerPush", async (req, res) => {
   const { pushToken, userId, platform } = req.body;
-
   if (!pushToken || !userId) {
     return res.status(400).send({ error: "Missing pushToken or userId" });
   }
+  console.log("Registering push token for user:", userId);
 
-  // Log the tag that will be used for registration
-  console.log("Registering push token with tag (userId):", userId);
-
-  // For web push notifications, use the new SDK and the Installation API
-  if (platform && platform.toLowerCase() === "web") {
-    if (typeof pushToken !== "object" || !pushToken.endpoint || !pushToken.keys || !pushToken.keys.p256dh || !pushToken.keys.auth) {
-      return res.status(400).send({ error: "Invalid web push subscription object" });
-    }
-    try {
-      const context = createClientContext(process.env.NOTIFICATION_HUB_CONNECTION_STRING, process.env.NOTIFICATION_HUB_NAME);
-      const installation = createBrowserInstallation({
-        installationId: userId, // Using userId as installationId
-        pushChannel: {
-          endpoint: String(pushToken.endpoint),
-          p256dh: String(pushToken.keys.p256dh),
-          auth: String(pushToken.keys.auth),
-        },
-        tags: [userId],
-      });
-      console.log("Installation object:", installation);
-      const result = await createOrUpdateInstallation(context, installation);
-      console.log("Web push registration result:", result);
-      return res.status(200).send({ message: "Web push token registered successfully", result });
-    } catch (error) {
-      console.error("Error registering web push token:", error);
-      return res.status(500).send({ error: error.message });
-    }
-  }
-  // For iOS, use APNS registration with azure-sb
-  else if (platform && platform.toLowerCase() === "ios") {
-    notificationHubService.apns.createAppleNativeRegistration(pushToken, { tags: [userId] }, (error, response) => {
-      if (error) {
-        console.error("Error registering APNS token:", error);
-        return res.status(500).send({ error: error.message });
-      }
-      console.log("APNS registration response:", response);
-      res.status(200).send({ message: "APNS push token registered successfully", registrationId: response });
-    });
-  }
-  // Default to Android (GCM/FCM) registration with azure-sb
-  else {
-    notificationHubService.gcm.createNativeRegistration(pushToken, { tags: [userId] }, (error, response) => {
-      if (error) {
-        console.error("Error registering GCM token:", error);
-        return res.status(500).send({ error: error.message });
-      }
-      console.log("GCM registration response:", response);
-      res.status(200).send({ message: "GCM push token registered successfully", registrationId: response });
-    });
+  // Only support native platforms (iOS, Android) with Expo push tokens
+  if (platform && (platform.toLowerCase() === "ios" || platform.toLowerCase() === "android")) {
+    // Assume pushToken is an Expo push token (e.g. ExponentPushToken[...])
+    expoPushTokens[userId] = pushToken;
+    console.log("Stored native Expo push token for user:", userId, pushToken);
+    return res.status(200).send({ message: "Native push token registered successfully", token: pushToken });
+  } else if (platform && platform.toLowerCase() === "web") {
+    return res.status(400).send({ error: "Push notifications on web are not supported with Expo push service" });
+  } else {
+    return res.status(400).send({ error: "Unsupported platform" });
   }
 });
 
@@ -628,46 +586,32 @@ app.post("/api/sendNotificationToUser", async (req, res) => {
   if (!phoneNumber || !payload || !payload.title || !payload.body) {
     return res.status(400).send({ error: "Missing required fields: phoneNumber, payload.title, and payload.body" });
   }
-
-  // If platform is "web", use the new SDK for browser notifications.
-  if (platform && platform.toLowerCase() === "web") {
-    try {
-      const context = createClientContext(process.env.NOTIFICATION_HUB_CONNECTION_STRING, process.env.NOTIFICATION_HUB_NAME);
-      const notificationContent = {
-        title: payload.title,
-        body: payload.body,
-        icon: payload.icon || "/icon.png",
-      };
-      const notification = createBrowserNotification(JSON.stringify(notificationContent));
-      const result = await sendNotification(context, notification, { tagExpression: phoneNumber });
-      console.log("Web notification send result:", result);
-      return res.status(200).send({ message: "Web notification sent", result });
-    } catch (error) {
-      console.error("Error sending web notification:", error);
-      return res.status(500).send({ error: error.message });
+  // Only support native platforms via Expo push service
+  if (platform && (platform.toLowerCase() === "ios" || platform.toLowerCase() === "android")) {
+    const expoPushToken = expoPushTokens[phoneNumber];
+    if (!expoPushToken) {
+      return res.status(404).send({ error: "No push token found for this user" });
     }
-  }
-  // Otherwise, assume native (Android/iOS) and use azure-sb for sending.
-  else {
-    // Build a native JSON payload for FCM (Android) notifications.
-    // For FCM, the payload is typically placed under a "data" property.
-    const nativePayload = JSON.stringify({
-      data: {
-        title: payload.title,
-        body: payload.body,
-      },
-    });
-
-    // Create a valid tag expression by wrapping the phone number in parentheses and single quotes.
-    console.log("Sending native notification to tag expression:", phoneNumber);
-    notificationHubService.send(nativePayload, phoneNumber, (error, response) => {
-      if (error) {
-        console.error("Error sending native notification:", error);
-        return res.status(500).send({ error: error.message });
-      }
-      console.log("Native notification send response:", response);
-      res.status(200).send({ message: "Native notification sent", response });
-    });
+    const expoMessage = {
+      to: expoPushToken,
+      title: payload.title,
+      body: payload.body,
+      data: payload.data || {},
+    };
+    try {
+      const response = await axios.post("https://exp.host/--/api/v2/push/send", expoMessage, {
+        headers: { "Content-Type": "application/json" },
+      });
+      console.log("Expo push send response:", response.data);
+      return res.status(200).send({ message: "Native notification sent", response: response.data });
+    } catch (error) {
+      console.error("Error sending native notification via Expo push service:", error.response?.data || error.message);
+      return res.status(500).send({ error: error.response?.data || error.message });
+    }
+  } else if (platform && platform.toLowerCase() === "web") {
+    return res.status(400).send({ error: "Sending web notifications via Expo push service is not supported" });
+  } else {
+    return res.status(400).send({ error: "Unsupported platform" });
   }
 });
 
