@@ -42,7 +42,7 @@ app.get("/", (req, res) => {
 
 // Create a new user
 app.post("/api/users", async (req, res) => {
-  const { phoneNumber, firstName, lastName, height, weight, weightGoal } = req.body;
+  const { phoneNumber, firstName, lastName, height, weight, latitude, longitude, streetName } = req.body;
   try {
     const pool = await sql.connect(config);
     await pool
@@ -52,10 +52,12 @@ app.post("/api/users", async (req, res) => {
       .input("lastName", sql.VarChar, lastName)
       .input("height", sql.Float, height)
       .input("weight", sql.Float, weight)
-      .input("weightGoal", sql.Float, weightGoal).query(`
-          INSERT INTO Users (PhoneNumber, FirstName, LastName, Height, Weight, WeightGoal)
-          VALUES (@phoneNumber, @firstName, @lastName, @height, @weight, @weightGoal)
-        `);
+      .input("latitude", sql.Float, latitude)
+      .input("longitude", sql.Float, longitude)
+      .query(`
+        INSERT INTO Users (PhoneNumber, FirstName, LastName, Height, Weight, Latitude, Longitude)
+        VALUES (@phoneNumber, @firstName, @lastName, @height, @weight, @latitude, @longitude)
+      `);
     res.status(200).send({ message: "User added successfully!" });
   } catch (error) {
     console.error("Error adding user:", error);
@@ -67,7 +69,10 @@ app.get("/api/users/:phoneNumber", async (req, res) => {
   const { phoneNumber } = req.params;
   try {
     const pool = await sql.connect(config);
-    const result = await pool.request().input("phoneNumber", sql.VarChar, phoneNumber).query("SELECT * FROM Users WHERE PhoneNumber = @phoneNumber");
+    const result = await pool
+      .request()
+      .input("phoneNumber", sql.VarChar, phoneNumber)
+      .query("SELECT * FROM Users WHERE PhoneNumber = @phoneNumber");
     if (result.recordset.length > 0) {
       res.status(200).json(result.recordset[0]);
     } else {
@@ -78,12 +83,50 @@ app.get("/api/users/:phoneNumber", async (req, res) => {
     res.status(500).send({ error: error.message });
   }
 });
+// Update a user by Phone Number
+app.put("/api/users/:phoneNumber", async (req, res) => {
+  const { phoneNumber } = req.params;
+  const { firstName, lastName, height, weight, latitude, longitude, streetName } = req.body;
+  try {
+    const pool = await sql.connect(config);
+    const result = await pool
+      .request()
+      .input("phoneNumber", sql.VarChar, phoneNumber)
+      .input("firstName", sql.VarChar, firstName)
+      .input("lastName", sql.VarChar, lastName)
+      .input("height", sql.Float, height)
+      .input("weight", sql.Float, weight)
+      .input("latitude", sql.Float, latitude)
+      .input("longitude", sql.Float, longitude)
+      .query(`
+        UPDATE Users
+        SET FirstName = @firstName,
+            LastName = @lastName,
+            Height = @height,
+            Weight = @weight,
+            Latitude = @latitude,
+            Longitude = @longitude
+        WHERE PhoneNumber = @phoneNumber
+      `);
+    if (result.rowsAffected[0] > 0) {
+      res.status(200).send({ message: "User updated successfully!" });
+    } else {
+      res.status(404).send({ message: "User not found" });
+    }
+  } catch (error) {
+    console.error("Error updating user:", error);
+    res.status(500).send({ error: error.message });
+  }
+});
 // Delete a user by Phone Number
 app.delete("/api/users/:phoneNumber", async (req, res) => {
   const { phoneNumber } = req.params;
   try {
     const pool = await sql.connect(config);
-    const result = await pool.request().input("phoneNumber", sql.VarChar, phoneNumber).query("DELETE FROM Users WHERE PhoneNumber = @phoneNumber");
+    const result = await pool
+      .request()
+      .input("phoneNumber", sql.VarChar, phoneNumber)
+      .query("DELETE FROM Users WHERE PhoneNumber = @phoneNumber");
     if (result.rowsAffected[0] > 0) {
       res.status(200).send({ message: "User deleted successfully!" });
     } else {
@@ -94,6 +137,7 @@ app.delete("/api/users/:phoneNumber", async (req, res) => {
     res.status(500).send({ error: error.message });
   }
 });
+
 
 // Route to add a device to IoT Hub and the database
 app.post("/api/devices", async (req, res) => {
