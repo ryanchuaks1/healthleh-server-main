@@ -42,7 +42,7 @@ app.get("/", (req, res) => {
 
 // Create a new user
 app.post("/api/users", async (req, res) => {
-  const { phoneNumber, firstName, lastName, height, weight, latitude, longitude, streetName } = req.body;
+  const { phoneNumber, firstName, lastName, height, weight, latitude, longitude, pushToken } = req.body;
   try {
     const pool = await sql.connect(config);
     await pool
@@ -53,9 +53,10 @@ app.post("/api/users", async (req, res) => {
       .input("height", sql.Float, height)
       .input("weight", sql.Float, weight)
       .input("latitude", sql.Float, latitude)
-      .input("longitude", sql.Float, longitude).query(`
-        INSERT INTO Users (PhoneNumber, FirstName, LastName, Height, Weight, Latitude, Longitude)
-        VALUES (@phoneNumber, @firstName, @lastName, @height, @weight, @latitude, @longitude)
+      .input("longitude", sql.Float, longitude)
+      .input("pushToken", sql.VarChar, pushToken).query(`
+        INSERT INTO Users (PhoneNumber, FirstName, LastName, Height, Weight, Latitude, Longitude, PushToken)
+        VALUES (@phoneNumber, @firstName, @lastName, @height, @weight, @latitude, @longitude, @pushToken)
       `);
     res.status(200).send({ message: "User added successfully!" });
   } catch (error) {
@@ -79,10 +80,10 @@ app.get("/api/users/:phoneNumber", async (req, res) => {
     res.status(500).send({ error: error.message });
   }
 });
-// Update a user by Phone Number
+// Update a user by Phone Number, including pushToken if provided
 app.put("/api/users/:phoneNumber", async (req, res) => {
   const { phoneNumber } = req.params;
-  const { firstName, lastName, height, weight, latitude, longitude, streetName } = req.body;
+  const { firstName, lastName, height, weight, latitude, longitude, pushToken } = req.body;
   try {
     const pool = await sql.connect(config);
     const result = await pool
@@ -93,14 +94,17 @@ app.put("/api/users/:phoneNumber", async (req, res) => {
       .input("height", sql.Float, height)
       .input("weight", sql.Float, weight)
       .input("latitude", sql.Float, latitude)
-      .input("longitude", sql.Float, longitude).query(`
+      .input("longitude", sql.Float, longitude)
+      .input("pushToken", sql.VarChar, pushToken)
+      .query(`
         UPDATE Users
         SET FirstName = @firstName,
             LastName = @lastName,
             Height = @height,
             Weight = @weight,
             Latitude = @latitude,
-            Longitude = @longitude
+            Longitude = @longitude,
+            PushToken = CASE WHEN @pushToken IS NULL THEN PushToken ELSE @pushToken END
         WHERE PhoneNumber = @phoneNumber
       `);
     if (result.rowsAffected[0] > 0) {
@@ -595,7 +599,7 @@ app.delete("/api/dailyrecords/:phoneNumber/:recordDate", async (req, res) => {
   }
 });
 
-// Push notifications registration endpoint using Expo push service
+// Push notifications registration endpoint using Expo push service, storing push token in the database
 app.post("/api/registerPush", async (req, res) => {
   const { pushToken, userId, platform } = req.body;
   if (!pushToken || !userId) {
@@ -605,10 +609,24 @@ app.post("/api/registerPush", async (req, res) => {
 
   // Only support native platforms (iOS, Android) with Expo push tokens
   if (platform && (platform.toLowerCase() === "ios" || platform.toLowerCase() === "android")) {
-    // Assume pushToken is an Expo push token (e.g. ExponentPushToken[...])
-    expoPushTokens[userId] = pushToken;
-    console.log("Stored native Expo push token for user:", userId, pushToken);
-    return res.status(200).send({ message: "Native push token registered successfully", token: pushToken });
+    try {
+      const pool = await sql.connect(config);
+      const result = await pool.request().input("userId", sql.VarChar, userId).input("pushToken", sql.VarChar, pushToken).query(`
+          UPDATE Users
+          SET PushToken = @pushToken
+          WHERE PhoneNumber = @userId
+        `);
+
+      if (result.rowsAffected[0] > 0) {
+        console.log("Stored native Expo push token in database for user:", userId, pushToken);
+        return res.status(200).send({ message: "Native push token registered successfully", token: pushToken });
+      } else {
+        return res.status(404).send({ error: "User not found" });
+      }
+    } catch (error) {
+      console.error("Error updating push token in database:", error);
+      return res.status(500).send({ error: error.message });
+    }
   } else if (platform && platform.toLowerCase() === "web") {
     console.log("Push notifications on web are not supported with Expo push service");
     return res.status(400).send({ error: "Push notifications on web are not supported with Expo push service" });
@@ -616,7 +634,6 @@ app.post("/api/registerPush", async (req, res) => {
     return res.status(400).send({ error: "Unsupported platform" });
   }
 });
-
 // Endpoint to send a notification to a specific user (using phone number as tag)
 app.post("/api/sendNotificationToUser", async (req, res) => {
   const { phoneNumber, payload, platform } = req.body;
