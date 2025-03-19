@@ -53,8 +53,7 @@ app.post("/api/users", async (req, res) => {
       .input("height", sql.Float, height)
       .input("weight", sql.Float, weight)
       .input("latitude", sql.Float, latitude)
-      .input("longitude", sql.Float, longitude)
-      .query(`
+      .input("longitude", sql.Float, longitude).query(`
         INSERT INTO Users (PhoneNumber, FirstName, LastName, Height, Weight, Latitude, Longitude)
         VALUES (@phoneNumber, @firstName, @lastName, @height, @weight, @latitude, @longitude)
       `);
@@ -69,10 +68,7 @@ app.get("/api/users/:phoneNumber", async (req, res) => {
   const { phoneNumber } = req.params;
   try {
     const pool = await sql.connect(config);
-    const result = await pool
-      .request()
-      .input("phoneNumber", sql.VarChar, phoneNumber)
-      .query("SELECT * FROM Users WHERE PhoneNumber = @phoneNumber");
+    const result = await pool.request().input("phoneNumber", sql.VarChar, phoneNumber).query("SELECT * FROM Users WHERE PhoneNumber = @phoneNumber");
     if (result.recordset.length > 0) {
       res.status(200).json(result.recordset[0]);
     } else {
@@ -97,8 +93,7 @@ app.put("/api/users/:phoneNumber", async (req, res) => {
       .input("height", sql.Float, height)
       .input("weight", sql.Float, weight)
       .input("latitude", sql.Float, latitude)
-      .input("longitude", sql.Float, longitude)
-      .query(`
+      .input("longitude", sql.Float, longitude).query(`
         UPDATE Users
         SET FirstName = @firstName,
             LastName = @lastName,
@@ -123,10 +118,7 @@ app.delete("/api/users/:phoneNumber", async (req, res) => {
   const { phoneNumber } = req.params;
   try {
     const pool = await sql.connect(config);
-    const result = await pool
-      .request()
-      .input("phoneNumber", sql.VarChar, phoneNumber)
-      .query("DELETE FROM Users WHERE PhoneNumber = @phoneNumber");
+    const result = await pool.request().input("phoneNumber", sql.VarChar, phoneNumber).query("DELETE FROM Users WHERE PhoneNumber = @phoneNumber");
     if (result.rowsAffected[0] > 0) {
       res.status(200).send({ message: "User deleted successfully!" });
     } else {
@@ -137,7 +129,6 @@ app.delete("/api/users/:phoneNumber", async (req, res) => {
     res.status(500).send({ error: error.message });
   }
 });
-
 
 // Route to add a device to IoT Hub and the database
 app.post("/api/devices", async (req, res) => {
@@ -638,12 +629,19 @@ app.post("/api/sendNotificationToUser", async (req, res) => {
     if (!expoPushToken) {
       return res.status(404).send({ error: "No push token found for this user" });
     }
+    // Build the notification message object
     const expoMessage = {
       to: expoPushToken,
       title: payload.title,
       body: payload.body,
       data: payload.data || {},
     };
+
+    // Add image property if provided in payload
+    if (payload.image) {
+      expoMessage.image = payload.image;
+    }
+
     try {
       const response = await axios.post("https://exp.host/--/api/v2/push/send", expoMessage, {
         headers: { "Content-Type": "application/json" },
