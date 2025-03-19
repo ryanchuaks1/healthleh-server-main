@@ -642,24 +642,36 @@ app.post("/api/sendNotificationToUser", async (req, res) => {
   }
   // Only support native platforms via Expo push service
   if (platform && (platform.toLowerCase() === "ios" || platform.toLowerCase() === "android")) {
-    const expoPushToken = expoPushTokens[phoneNumber];
-    if (!expoPushToken) {
-      return res.status(404).send({ error: "No push token found for this user" });
-    }
-    // Build the notification message object
-    const expoMessage = {
-      to: expoPushToken,
-      title: payload.title,
-      body: payload.body,
-      data: payload.data || {},
-    };
-
-    // Add image property if provided in payload
-    if (payload.image) {
-      expoMessage.image = payload.image;
-    }
-
     try {
+      // Query the database for the user's push token
+      const pool = await sql.connect(config);
+      const result = await pool
+        .request()
+        .input("phoneNumber", sql.VarChar, phoneNumber)
+        .query("SELECT PushToken FROM Users WHERE PhoneNumber = @phoneNumber");
+
+      if (!result.recordset || result.recordset.length === 0) {
+        return res.status(404).send({ error: "User not found" });
+      }
+      
+      const pushToken = result.recordset[0].PushToken;
+      if (!pushToken) {
+        return res.status(404).send({ error: "No push token found for this user" });
+      }
+      
+      // Build the notification message object
+      const expoMessage = {
+        to: pushToken,
+        title: payload.title,
+        body: payload.body,
+        data: payload.data || {}
+      };
+
+      // Add image property if provided in payload
+      if (payload.image) {
+        expoMessage.image = payload.image;
+      }
+
       const response = await axios.post("https://exp.host/--/api/v2/push/send", expoMessage, {
         headers: { "Content-Type": "application/json" },
       });
@@ -675,6 +687,7 @@ app.post("/api/sendNotificationToUser", async (req, res) => {
     return res.status(400).send({ error: "Unsupported platform" });
   }
 });
+
 
 // Start the server
 const port = process.env.PORT || 3000;
