@@ -659,7 +659,7 @@ app.post("/api/sendNotificationToUser", async (req, res) => {
         return res.status(404).send({ error: "No push token found for this user" });
       }
       
-      // Build the notification message object
+      // Build the notification message object.
       const expoMessage = {
         to: pushToken,
         title: payload.title,
@@ -667,11 +667,13 @@ app.post("/api/sendNotificationToUser", async (req, res) => {
         data: payload.data || {}
       };
 
-      // Add image property if provided in payload
-      if (payload.image) {
-        expoMessage.image = payload.image;
+      // Check for image in the top-level field first, then in the payload
+      const imageUrl = req.body.image || payload.image;
+      if (imageUrl) {
+        expoMessage.image = imageUrl;
       }
-
+      
+      // Send notification via Expo push service
       const response = await axios.post("https://exp.host/--/api/v2/push/send", expoMessage, {
         headers: { "Content-Type": "application/json" },
       });
@@ -687,6 +689,7 @@ app.post("/api/sendNotificationToUser", async (req, res) => {
     return res.status(400).send({ error: "Unsupported platform" });
   }
 });
+
 
 
 // Start the server
