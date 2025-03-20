@@ -21,6 +21,7 @@ app.use(
 // In-memory store for native Expo push tokens keyed by phone number
 const expoPushTokens = {};
 const config = {
+  driver: "msnodesqlv8",  // Specify the native Windows driver
   user: process.env.DB_USER,
   password: process.env.DB_PASS,
   server: process.env.DB_SERVER,
@@ -28,9 +29,10 @@ const config = {
   options: {
     encrypt: true,
     trustServerCertificate: false,
-    columnEncryptionSetting: true, // Enable automatic decryption of Always Encrypted columns
+    columnEncryptionSetting: true, // This enables Always Encrypted decryption
   },
 };
+
 
 
 // IoT Hub Registry
