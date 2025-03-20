@@ -1,6 +1,6 @@
 const express = require("express");
 const bodyParser = require("body-parser");
-const sql = require("mssql");
+const sql = require("mssql/msnodesqlv8");
 const dotenv = require("dotenv");
 const cors = require("cors");
 const axios = require("axios");
@@ -18,17 +18,8 @@ app.use(
   })
 );
 
-// In-memory store for native Expo push tokens keyed by phone number
-const expoPushTokens = {};
 const config = {
-  user: process.env.DB_USER,
-  password: process.env.DB_PASS,
-  server: process.env.DB_SERVER,
-  database: process.env.DB_NAME,
-  options: {
-    encrypt: true,
-    trustServerCertificate: false,
-  },
+  connectionString: `Driver={ODBC Driver 17 for SQL Server};Server=${process.env.DB_SERVER};Database=${process.env.DB_NAME};Uid=${process.env.DB_USER};Pwd=${process.env.DB_PASS};Encrypt=yes;Column Encryption Setting=Enabled;KeyStoreAuthentication=KeyVaultManagedIdentity;`,
 };
 
 // IoT Hub Registry
@@ -71,6 +62,7 @@ app.get("/api/users/:phoneNumber", async (req, res) => {
     const pool = await sql.connect(config);
     const result = await pool.request().input("phoneNumber", sql.VarChar, phoneNumber).query("SELECT * FROM Users WHERE PhoneNumber = @phoneNumber");
     if (result.recordset.length > 0) {
+      console.log("User found:", result.recordset[0]);
       res.status(200).json(result.recordset[0]);
     } else {
       res.status(404).send({ message: "User not found" });
@@ -95,8 +87,7 @@ app.put("/api/users/:phoneNumber", async (req, res) => {
       .input("weight", sql.Float, weight)
       .input("latitude", sql.Float, latitude)
       .input("longitude", sql.Float, longitude)
-      .input("pushToken", sql.VarChar, pushToken)
-      .query(`
+      .input("pushToken", sql.VarChar, pushToken).query(`
         UPDATE Users
         SET FirstName = @firstName,
             LastName = @lastName,
@@ -562,7 +553,7 @@ app.get("/api/activities/today/:phoneNumber", async (req, res) => {
   // 'en-CA' locale produces a YYYY-MM-DD string.
   const now = new Date();
   const singaporeDateStr = now.toLocaleDateString("en-CA", {
-    timeZone: "Asia/Singapore"
+    timeZone: "Asia/Singapore",
   });
 
   // Create start and end boundaries for the day in UTC+8.
@@ -572,11 +563,11 @@ app.get("/api/activities/today/:phoneNumber", async (req, res) => {
 
   try {
     const pool = await sql.connect(config);
-    const result = await pool.request()
+    const result = await pool
+      .request()
       .input("phoneNumber", sql.VarChar, phoneNumber)
       .input("startOfDay", sql.DateTime, startOfDay)
-      .input("endOfDay", sql.DateTime, endOfDay)
-      .query(`
+      .input("endOfDay", sql.DateTime, endOfDay).query(`
         SELECT [id],
                [phoneNumber],
                [cumulativeStepsToday],
@@ -644,26 +635,23 @@ app.post("/api/sendNotificationToUser", async (req, res) => {
     try {
       // Query the database for the user's push token
       const pool = await sql.connect(config);
-      const result = await pool
-        .request()
-        .input("phoneNumber", sql.VarChar, phoneNumber)
-        .query("SELECT PushToken FROM Users WHERE PhoneNumber = @phoneNumber");
+      const result = await pool.request().input("phoneNumber", sql.VarChar, phoneNumber).query("SELECT PushToken FROM Users WHERE PhoneNumber = @phoneNumber");
 
       if (!result.recordset || result.recordset.length === 0) {
         return res.status(404).send({ error: "User not found" });
       }
-      
+
       const pushToken = result.recordset[0].PushToken;
       if (!pushToken) {
         return res.status(404).send({ error: "No push token found for this user" });
       }
-      
+
       // Build the notification message object.
       const expoMessage = {
         to: pushToken,
         title: payload.title,
         body: payload.body,
-        data: payload.data || {}
+        data: payload.data || {},
       };
 
       // Check for image in the top-level field first, then in the payload
@@ -671,7 +659,7 @@ app.post("/api/sendNotificationToUser", async (req, res) => {
       if (imageUrl) {
         expoMessage.image = imageUrl;
       }
-      
+
       // Send notification via Expo push service
       const response = await axios.post("https://exp.host/--/api/v2/push/send", expoMessage, {
         headers: { "Content-Type": "application/json" },
@@ -688,8 +676,6 @@ app.post("/api/sendNotificationToUser", async (req, res) => {
     return res.status(400).send({ error: "Unsupported platform" });
   }
 });
-
-
 
 // Start the server
 const port = process.env.PORT || 3000;
