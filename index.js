@@ -308,72 +308,6 @@ app.put("/api/goals/:id", async (req, res) => {
   }
 });
 
-// Add a tracked activity
-app.post("/api/tracked-activities", async (req, res) => {
-  const { phoneNumber, steps, cumulativeStepsToday, distanceKm, caloriesBurned, distanceFromHome } = req.body;
-  try {
-    const pool = await sql.connect(config);
-    await pool
-      .request()
-      .input("phoneNumber", sql.VarChar, phoneNumber)
-      .input("steps", sql.Int, steps)
-      .input("cumulativeStepsToday", sql.Int, cumulativeStepsToday)
-      .input("distanceKm", sql.Decimal(5, 2), distanceKm)
-      .input("caloriesBurned", sql.Int, caloriesBurned)
-      .input("distanceFromHome", sql.Decimal(6, 2), distanceFromHome)
-      .query(
-        "INSERT INTO TrackedActivities (phoneNumber, steps, cumulativeStepsToday, distanceKm, caloriesBurned, distanceFromHome) VALUES (@phoneNumber, @steps, @cumulativeStepsToday, @distanceKm, @caloriesBurned, @distanceFromHome)"
-      );
-    res.status(200).send({ message: "Tracked activity added successfully!" });
-  } catch (error) {
-    res.status(500).send({ error: error.message });
-  }
-});
-// Get all tracked activities for a user
-app.get("/api/tracked-activities/:phoneNumber", async (req, res) => {
-  try {
-    const pool = await sql.connect(config);
-    const result = await pool
-      .request()
-      .input("phoneNumber", sql.VarChar, req.params.phoneNumber)
-      .query("SELECT * FROM TrackedActivities WHERE phoneNumber = @phoneNumber");
-    res.status(200).json(result.recordset);
-  } catch (error) {
-    res.status(500).send({ error: error.message });
-  }
-});
-// Update a tracked activity
-app.put("/api/tracked-activities/:id", async (req, res) => {
-  const { steps, cumulativeStepsToday, distanceKm, caloriesBurned, distanceFromHome } = req.body;
-  try {
-    const pool = await sql.connect(config);
-    await pool
-      .request()
-      .input("id", sql.Int, req.params.id)
-      .input("steps", sql.Int, steps)
-      .input("cumulativeStepsToday", sql.Int, cumulativeStepsToday)
-      .input("distanceKm", sql.Decimal(5, 2), distanceKm)
-      .input("caloriesBurned", sql.Int, caloriesBurned)
-      .input("distanceFromHome", sql.Decimal(6, 2), distanceFromHome)
-      .query(
-        "UPDATE TrackedActivities SET steps = @steps, cumulativeStepsToday = @cumulativeStepsToday, distanceKm = @distanceKm, caloriesBurned = @caloriesBurned, distanceFromHome = @distanceFromHome WHERE id = @id"
-      );
-    res.status(200).send({ message: "Tracked activity updated successfully!" });
-  } catch (error) {
-    res.status(500).send({ error: error.message });
-  }
-});
-// Delete a tracked activity
-app.delete("/api/tracked-activities/:id", async (req, res) => {
-  try {
-    const pool = await sql.connect(config);
-    await pool.request().input("id", sql.Int, req.params.id).query("DELETE FROM TrackedActivities WHERE id = @id");
-    res.status(200).send({ message: "Tracked activity deleted successfully!" });
-  } catch (error) {
-    res.status(500).send({ error: error.message });
-  }
-});
-
 // Add a user exercise
 app.post("/api/user-exercises", async (req, res) => {
   const { phoneNumber, exerciseType, durationMinutes, caloriesBurned, intensity, rating, distanceFromHome } = req.body;
@@ -596,6 +530,71 @@ app.delete("/api/dailyrecords/:phoneNumber/:recordDate", async (req, res) => {
   } catch (error) {
     console.error("Error deleting daily record:", error);
     res.status(500).send({ error: error.message });
+  }
+});
+
+// Insert a new activity (location) into the Activities table
+app.post("/api/activities", async (req, res) => {
+  const { phoneNumber, activityDate, latitude, longitude } = req.body;
+  try {
+    const pool = await sql.connect(config);
+    await pool
+      .request()
+      .input("phoneNumber", sql.VarChar, phoneNumber)
+      .input("activityDate", sql.DateTime, activityDate)
+      .input("latitude", sql.Decimal(9, 6), latitude)
+      .input("longitude", sql.Decimal(9, 6), longitude)
+      .query(
+        `INSERT INTO Activities (phoneNumber, activityDate, latitude, longitude) 
+         VALUES (@phoneNumber, @activityDate, @latitude, @longitude)`
+      );
+    res.status(200).send({ message: "Activity added successfully!" });
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({ error: error.message });
+  }
+});
+// Get today's activities for a user (using UTC+8 day boundaries)
+app.get("/api/activities/today/:phoneNumber", async (req, res) => {
+  const { phoneNumber } = req.params;
+
+  // Compute today's boundaries for UTC+8.
+  // 'en-CA' locale produces a YYYY-MM-DD string.
+  const now = new Date();
+  const singaporeDateStr = now.toLocaleDateString("en-CA", {
+    timeZone: "Asia/Singapore"
+  });
+
+  // Create start and end boundaries for the day in UTC+8.
+  const startOfDay = new Date(singaporeDateStr + "T00:00:00+08:00");
+  const endOfDay = new Date(singaporeDateStr + "T00:00:00+08:00");
+  endOfDay.setDate(endOfDay.getDate() + 1);
+
+  try {
+    const pool = await sql.connect(config);
+    const result = await pool.request()
+      .input("phoneNumber", sql.VarChar, phoneNumber)
+      .input("startOfDay", sql.DateTime, startOfDay)
+      .input("endOfDay", sql.DateTime, endOfDay)
+      .query(`
+        SELECT [id],
+               [phoneNumber],
+               [cumulativeStepsToday],
+               [caloriesBurned],
+               [activityDate],
+               [latitude],
+               [longitude]
+          FROM [dbo].[Activities]
+         WHERE phoneNumber = @phoneNumber
+           AND activityDate >= @startOfDay
+           AND activityDate < @endOfDay
+         ORDER BY activityDate DESC
+      `);
+
+    res.status(200).json(result.recordset);
+  } catch (error) {
+    console.error("Error fetching today's activities:", error);
+    res.status(500).json({ error: error.message });
   }
 });
 
